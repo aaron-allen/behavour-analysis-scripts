@@ -92,16 +92,12 @@ function correct_orientation_flips(input_dir,low_cutoff,high_cutoff)
         for A = 1:size(correct_frames,1)
           % disp(['Correcting fly:  ' A]);
           fly_id = correct_frames(A,1);
-          wrong_angle_indices = find_wrong_indices(trk.data(fly_id,:,3), ...
-              correct_frames(A,2),correct_frames(A,3),low_cutoff,high_cutoff);
+          wrong_angle_indices = find_wrong_indices(trk.data(fly_id,:,3),correct_frames(A,2),correct_frames(A,3),low_cutoff,high_cutoff);
           if ~isempty(wrong_angle_indices)
-              trk.data(fly_id,wrong_angle_indices,3) = ...
-                  trk.data(fly_id,wrong_angle_indices,3) - pi;
+              trk.data(fly_id,wrong_angle_indices,3) = trk.data(fly_id,wrong_angle_indices,3) - pi;
               trk.data(fly_id,:,3) = wrapToPi(trk.data(fly_id,:,3));
-              feat.data(fly_id,wrong_angle_indices,12) = ...
-                  pi - feat.data(fly_id,wrong_angle_indices,12);
-              feat.data(fly_id,wrong_angle_indices,11) = ...
-                  pi - feat.data(fly_id,wrong_angle_indices,11);
+              feat.data(fly_id,wrong_angle_indices,12) = pi - feat.data(fly_id,wrong_angle_indices,12);
+              feat.data(fly_id,wrong_angle_indices,11) = pi - feat.data(fly_id,wrong_angle_indices,11);
           end
         end
 
@@ -117,8 +113,7 @@ end
 
 function wrong_angle_indices=find_wrong_indices(input,first_frame,last_frame,low_cutoff,high_cutoff)
     delta_angle = diff(input);
-    delta_angle_ind = find((delta_angle>low_cutoff & delta_angle<high_cutoff) ...
-        | (delta_angle<-low_cutoff & delta_angle>-high_cutoff));
+    delta_angle_ind = find((delta_angle>low_cutoff & delta_angle<high_cutoff) | (delta_angle<-low_cutoff & delta_angle>-high_cutoff));
     delta_angle_ind(delta_angle_ind < first_frame) = [];
     delta_angle_ind(delta_angle_ind > last_frame) = [];
     starting_ind = delta_angle_ind(1:2:end);
