@@ -34,22 +34,28 @@ function reset_track_and_feat(input_dir)
         disp('Saving modified track and feat files in Backups directory');
         TrackFile = dir('*-track.mat');
         FeatFile = dir('*-feat.mat');
-        load(TrackFile.name);
-        load(FeatFile.name);
-
-        save(['../Backups/' name '-track_oriCorrectionBackup_' ...
-            datestr(now,'yyyymmdd_HHMMSS') '.mat'], 'trk')
-        save(['../Backups/' name '-feat_oriCorrectionBackup_' ...
-            datestr(now,'yyyymmdd_HHMMSS') '.mat'], 'feat')
+        movefile(TrackFile.name, ['../Backups/' name '-track_oriCorrectionBackup_' ...
+            datestr(now,'yyyymmdd_HHMMSS') '.mat'])
+        movefile(FeatFile.name, ['../Backups/' name '-feat_oriCorrectionBackup_' ...
+            datestr(now,'yyyymmdd_HHMMSS') '.mat'])
         
-        feat_backup = dir('../Backups/*feat_oriCorrectionBackup_initial_*');
-        track_backup = dir('../Backups/*track_oriCorrectionBackup_initial_*');
-        load(['../Backups/' feat_backup.name]);
-        load(['../Backups/' track_backup.name]);
+        % load(TrackFile.name);
+        % load(FeatFile.name);
+        % save(['../Backups/' name '-track_oriCorrectionBackup_' ...
+        %     datestr(now,'yyyymmdd_HHMMSS') '.mat'], 'trk')
+        % save(['../Backups/' name '-feat_oriCorrectionBackup_' ...
+        %     datestr(now,'yyyymmdd_HHMMSS') '.mat'], 'feat')
         
         disp('Reseting original track and feat files');
-        save([name '-track.mat'], 'trk')
-        save([name '-feat.mat'], 'feat')
+        track_backup = dir('../Backups/*track_oriCorrectionBackup_initial_*');
+        feat_backup = dir('../Backups/*feat_oriCorrectionBackup_initial_*');
+        copyfile(['../Backups/' track_backup.name], [name '-track.mat'])
+        copyfile(['../Backups/' feat_backup.name], [name '-feat.mat'])
+        
+        % load(['../Backups/' feat_backup.name]);
+        % load(['../Backups/' track_backup.name]);
+        % save([name '-track.mat'], 'trk')
+        % save([name '-feat.mat'], 'feat')
         cd(input_dir);
 
     end
