@@ -25,6 +25,15 @@
 %                  times when the orientation angle crosses the -pi/pi line
 %                  which results in a 2pi change in angle - I have been
 %                  using 5 for this value)
+% 'diag_plots' - 'true' or 'false', whether to generate diagnostic plots of
+%                the current changes. This was the 'diagnostic_plots' pdf
+%                will be up to date and reflect any changes made. Also
+%                useful in conjunction with 'save_changes' if you want to
+%                test values for 'low_cutoff' and 'high_cuttoff'.
+% 'save_changes' - 'true' or 'false', whether to save any changes to the
+%                  'track' and 'feat' files.
+
+
 
 % Other requirements:
 
@@ -40,7 +49,7 @@
 
 
 
-function correct_orientation_flips(input_dir,low_cutoff,high_cutoff)
+function correct_orientation_flips(input_dir,low_cutoff,high_cutoff,diag_plots,save_changes)
     cd(input_dir);
     dirs = dir();
     for p = 1:numel(dirs)
@@ -69,25 +78,26 @@ function correct_orientation_flips(input_dir,low_cutoff,high_cutoff)
         end
         load(TrackFile.name);
         load(FeatFile.name);
-        
-        disp('Saving backups');
-        if ~exist('../Backups/', 'dir')
-            mkdir('../Backups/')
+
+        if save_changes == true
+            disp('Saving backups');
+            if ~exist('../Backups/', 'dir')
+                mkdir('../Backups/')
+            end
+
+            backups = dir('../Backups/*_oriCorrectionBackup*');
+            if isempty(backups)
+                save(['../Backups/' name '-track_oriCorrectionBackup_initial_' ...
+                    datestr(now,'yyyymmdd_HHMMSS') '.mat'], 'trk')
+                save(['../Backups/' name '-feat_oriCorrectionBackup_initial_' ...
+                    datestr(now,'yyyymmdd_HHMMSS') '.mat'], 'feat')
+            else
+                save(['../Backups/' name '-track_oriCorrectionBackup_' ...
+                    datestr(now,'yyyymmdd_HHMMSS') '.mat'], 'trk')
+                save(['../Backups/' name '-feat_oriCorrectionBackup_' ...
+                    datestr(now,'yyyymmdd_HHMMSS') '.mat'], 'feat')
+            end
         end
-        
-        backups = dir('../Backups/*_oriCorrectionBackup*');
-        if isempty(backups)
-            save(['../Backups/' name '-track_oriCorrectionBackup_initial_' ...
-                datestr(now,'yyyymmdd_HHMMSS') '.mat'], 'trk')
-            save(['../Backups/' name '-feat_oriCorrectionBackup_initial_' ...
-                datestr(now,'yyyymmdd_HHMMSS') '.mat'], 'feat')
-        else
-            save(['../Backups/' name '-track_oriCorrectionBackup_' ...
-                datestr(now,'yyyymmdd_HHMMSS') '.mat'], 'trk')
-            save(['../Backups/' name '-feat_oriCorrectionBackup_' ...
-                datestr(now,'yyyymmdd_HHMMSS') '.mat'], 'feat')
-        end
-        
         
         for A = 1:size(correct_frames,1)
           % disp(['Correcting fly:  ' A]);
@@ -105,12 +115,20 @@ function correct_orientation_flips(input_dir,low_cutoff,high_cutoff)
           end
         end
 
-        disp('Saving new track and feat files');
-        save([name '-track.mat'], 'trk')
-        save([name '-feat.mat'], 'feat')
+         
+        if save_changes == true
+            disp('Saving new track and feat files');
+            save([name '-track.mat'], 'trk')
+            save([name '-feat.mat'], 'feat')
+        end
         
         cd(input_dir);
     end
+    
+    if diag_plots == true
+        diagnostic_plots(input_dir) 
+    end
+
 end
 
 
