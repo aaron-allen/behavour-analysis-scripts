@@ -1,0 +1,403 @@
+---
+title: "**Per Video Courtship Processing**"
+author: "Aaron M. Allen"
+date: 'Last update: `r date()`'
+output:
+  html_document:
+    theme: cerulean
+    df_print: paged
+    fig_width: 8.5
+    fig_height: 5
+    number_sections: true
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: yes
+      toc_depth: 6
+---
+
+
+
+
+```{css, echo = FALSE}
+pre, code {white-space:pre !important; overflow-x:auto}
+```
+
+
+```{r echo = FALSE, cache = FALSE}
+
+```
+
+
+```{r setup, echo = FALSE, cache = FALSE}
+ggplot2::theme_set(ggplot2::theme_grey())
+
+knitr::opts_chunk$set(dev = c('png', 'cairo_pdf'),
+                      fig.align = 'center',
+                      fig.height = 5,
+                      fig.width = 8.5,
+                      dpi = 200,
+                      pdf.options(encoding = "ISOLatin9.enc"),
+                      fig.path = paste0('figures/',
+                                        format(Sys.time(), "%Y%m%d_%H%M%S"), "/"),
+                      fig.retina = 1,
+                      warning = TRUE,
+                      message = TRUE)
+```
+
+
+
+# **Load packages**
+
+Loading in the packages that we'll need for the analysis.
+
+```{r}
+library(tidyverse)
+library(survminer)
+library(survival)
+library(data.table)
+library(ggpubr)
+library(zoo)
+library(ggbeeswarm)
+library(cowplot)
+```
+
+
+
+
+
+# **Load data**
+
+
+```{r}
+path_mod <- "/mnt/synology/Tracked/"
+indices_list <- list.files(path = "/mnt/synology/Tracked/",recursive = TRUE) %>% 
+    str_subset("_Indices.csv") %>% 
+    str_subset("", negate = TRUE) %>% 
+    str_subset("", negate = TRUE) %>% 
+    str_subset("", negate = TRUE) %>% 
+    str_subset("", negate = TRUE)
+# indices_list
+```
+
+```{r}
+path_mod <- "/mnt/synology/Tracked/"
+rawdata_list <- list.files(path = "/mnt/synology/Tracked/",recursive = TRUE) %>% 
+    str_subset("_ALLDATA_R.csv.gz") %>% 
+    str_subset("", negate = TRUE) %>% 
+    str_subset("", negate = TRUE) %>% 
+    str_subset("", negate = TRUE) %>% 
+    str_subset("", negate = TRUE)
+# rawdata_list
+```
+
+
+### Run sequentially
+
+```{r}
+processed_list <- list()
+source("/home/aaron/Documents/GitHub/Trackin-Scripts/single_vid_process.R")
+for (i in seq_along(rawdata_list)) {
+    video_name <- rawdata_list[[i]] %>% str_split(pattern = "/", simplify = TRUE) %>% .[,3]
+    message(paste0("Processing:  ", video_name, "  ..."))
+    processed_list[[i]] <- single_vid_process(indices_path = paste0(path_mod,indices_list[[i]]),
+                                              rawdata_path = paste0(path_mod,rawdata_list[[i]])
+                                              )
+}
+```
+
+
+<!-- ### Run as background jobs -->
+
+<!-- ```{r} -->
+<!-- for (i in seq_along(rawdata_list)) { -->
+<!--     video_name <- rawdata_list[[i]] %>% str_split(pattern = "/", simplify = TRUE) %>% .[,3] -->
+<!--     message(paste0("Processing:  ", video_name, "  ...")) -->
+<!--     Sys.sleep(0.1) -->
+<!--     job::job({ -->
+<!--         source("/home/aaron/Documents/GitHub/Trackin-Scripts/single_vid_process.R") -->
+<!--         # Sys.sleep(10) -->
+<!--         Sys.sleep(i*4) -->
+<!--         temp <- single_vid_process(indices_path = paste0(path_mod,indices_list[[i]]), -->
+<!--                                   rawdata_path = paste0(path_mod,rawdata_list[[i]]) -->
+<!--                                   ) -->
+<!--         assign(paste0("processed_df_", video_name), temp) -->
+<!--         rm(temp) -->
+<!--         job::export(value = "new") -->
+<!--     }, -->
+<!--     import = c(path_mod, indices_list, rawdata_list, i, video_name), -->
+<!--     title = video_name, -->
+<!--     packages = NULL -->
+<!--     ) -->
+<!-- } -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- processed_dfs <- ls(pattern = "processed_df_") -->
+<!-- processed_dfs -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- processed_list <- list() -->
+<!-- for (i in seq_along(processed_dfs)) { -->
+<!--     processed_list[[i]] <- eval(as.name(processed_dfs[[i]])) -->
+<!-- } -->
+<!-- rm(list = ls(pattern = "^processed_df_")) -->
+<!-- ``` -->
+
+
+
+
+
+### Merge list
+
+
+```{r}
+all_processed_data <- bind_rows(processed_list)
+head(all_processed_data)
+```
+
+
+
+
+
+
+
+
+# The Plots
+
+
+Read in Tetsuya's genotype list.
+
+```{r}
+genotype_by_videoname <- read_csv(file = "video_names-TN.csv")
+genotype_by_videoname
+```
+
+
+```{r}
+all_processed_data <- all_processed_data %>% 
+    left_join(genotype_by_videoname, by = c("Video_name" = "Genotype_ish")) %>% 
+    mutate(experimental_condition = Simplified_Genotype,
+           Simplified_Genotype = if_else(pred_sex == "F", "CS", Simplified_Genotype)
+           )
+head(all_processed_data)
+```
+
+
+```{r}
+colnames(all_processed_data)
+```
+
+
+
+<!-- ```{r} -->
+<!-- stattime <- Sys.time() -->
+<!-- all_processed_data %>% -->
+<!--     select(Simplified_Genotype, Video_name, Arena, Fly_Id, sex) %>%  -->
+<!--     unique() %>%  -->
+<!--     group_by(Simplified_Genotype) %>%  -->
+<!--     count() -->
+<!-- Sys.time() - stattime -->
+<!-- ``` -->
+
+
+
+```{r}
+library(dtplyr)
+stattime <- Sys.time()
+all_processed_data %>%
+    lazy_dt() %>% 
+    select(Simplified_Genotype, Video_name, Arena, Fly_Id, sex) %>% 
+    unique() %>% 
+    group_by(Simplified_Genotype) %>% 
+    count() %>% 
+    as.tibble()
+Sys.time() - stattime
+detach("package:dtplyr", unload = TRUE)
+```
+
+
+
+<!-- ```{r} -->
+<!-- library(multidplyr) -->
+<!-- cluster <- new_cluster(12) -->
+<!-- cluster_library(cluster, "dplyr") -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- stattime <- Sys.time() -->
+<!-- all_processed_data %>% -->
+<!--     select(Simplified_Genotype, Video_name, Arena, Fly_Id, sex) %>%  -->
+<!--     unique() %>%  -->
+<!--     group_by(Simplified_Genotype) %>%  -->
+<!--     count() %>%  -->
+<!--     partition(cluster) -->
+<!-- Sys.time() - stattime -->
+<!-- rm(cluster) -->
+<!-- detach("package:multidplyr", unload = TRUE) -->
+<!-- ``` -->
+
+
+
+
+
+### CI
+
+```{r warning=F,message=F,fig.width=4,fig.height=4}
+indices <- all_processed_data %>%
+  filter(pred_sex != "F") %>% 
+  group_by(Video_name, Arena, Fly_Id) %>% 
+  summarise(Simplified_Genotype = unique(Simplified_Genotype),
+            CI = 100*sum(Courtship)/length(Frame),
+            CIwF = 100*sum(CourtshipWithFacing)/length(Frame),
+            approaching = 100*sum(Approaching)/length(Frame),
+            contact = 100*sum(Contact)/length(Frame),
+            circling = 100*sum(Encircling)/length(Frame),
+            facing = 100*sum(Facing)/length(Frame),
+            turning = 100*sum(Turning)/length(Frame),
+            wing = 100*sum(WingGesture)/length(Frame)
+            ) 
+
+indices %>% 
+    ggplot(aes(x = Simplified_Genotype,y = CIwF)) +
+    geom_boxplot(outlier.size = 0) +
+    geom_beeswarm(shape = 21, colour = "black", fill = "white", size = 2, stroke = 1) +
+    ylim(0,100) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    ylab("Courtship Index (%)") + 
+    xlab("Genotype")
+```
+
+
+
+
+
+### Separate Indices
+
+
+```{r warning=F,message=F,fig.width=12,fig.height=8}
+p <- list()
+courtship_features <- c("approaching","facing","contact","circling","turning","wing")
+for (i in 1:length(courtship_features)) {
+    p[[i]] <- indices %>% 
+        ggplot(aes_string(x = "Simplified_Genotype",y = courtship_features[i])) +
+            geom_boxplot(outlier.size = 0) +
+            geom_beeswarm(shape = 21, colour = "black", fill = "white", size = 2, stroke = 1) +
+            # geom_quasirandom(method = "smiley",shape = 21, colour = "black", fill = "white", size = 2, stroke = 1) +
+            ylim(0,100) +
+            theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+            ylab(as.name(courtship_features[i])) + 
+            xlab("Genotype")
+}
+plot_grid(plotlist = p,ncol = 3)
+```
+
+
+
+
+### Courtship initiation
+
+
+```{r warning=F,message=F,fig.width=4,fig.height=4}
+all_processed_data %>% 
+    select(Simplified_Genotype, Video_name, Arena, Frame, pred_sex) %>% 
+    filter(pred_sex == "M") %>% 
+    group_by(Simplified_Genotype, Video_name, Arena) %>% 
+    summarise(court_init_frame = min(Frame)) %>% 
+    ggplot(aes(x = Simplified_Genotype,y = court_init_frame/1500)) +
+        geom_boxplot() +
+        ylim(0,10) +
+        geom_boxplot(outlier.size = 0) +
+        geom_beeswarm(shape = 21, colour = "black", fill = "white", size = 2, stroke = 1) +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+        ylab("Courtship Initiation (min.)") +
+        xlab("Genotype")
+```
+
+
+
+
+
+<!-- ```{r} -->
+<!-- unique(courting_frames$Simplified_Genotype) %>% str_subset(pattern = "CS", negate = TRUE) %>% sort() -->
+<!-- ``` -->
+
+<!-- ```{r warning=F,message=F,fig.width=8,fig.height=8} -->
+<!-- p <- list() -->
+<!-- male_genotypes <- unique(courting_frames$Simplified_Genotype) %>% str_subset(pattern = "CS", negate = TRUE) %>% sort() -->
+<!-- for (i in 1:length(male_genotypes)) { -->
+<!--     p[[i]] <- courting_frames %>%  -->
+<!--                   filter(Simplified_Genotype == male_genotypes[[i]]) %>% -->
+<!--                   filter(max_wing_ang > (35*pi/180)) %>% -->
+<!--                   ggplot(aes(x = ipsi_contra_rel_x,y = rel_y_other)) + -->
+<!--                       geom_bin2d(bins = c(400,400)) + -->
+<!--                       xlim(-20,20) + -->
+<!--                       ylim(-20,20) +  -->
+<!--                       scale_fill_continuous(limits = c(0,400),na.value = "white") + -->
+<!--                       theme_void() + -->
+<!--                       coord_fixed() + -->
+<!--                       ggtitle(male_genotypes[i]) -->
+<!--     plot(p[[i]]) -->
+<!-- } -->
+<!-- # plot_grid(plotlist = p,ncol = 3) -->
+<!-- ``` -->
+
+
+
+
+```{r warning=F,message=F,fig.width=12,fig.height=6}
+p <- list()
+male_genotypes <- unique(all_processed_data$Simplified_Genotype) %>% str_subset(pattern = "CS", negate = TRUE) %>% sort()
+for (i in 1:length(male_genotypes)) {
+    p[[i]] <- all_processed_data %>% 
+                  filter(Simplified_Genotype == male_genotypes[[i]]) %>%
+                  filter(max_wing_ang > (35*pi/180)) %>%
+                  ggplot(aes(x = ipsi_contra_rel_x,y = rel_y_other)) +
+                      geom_bin2d(bins = c(400,400)) +
+                      xlim(-20,20) +
+                      ylim(-20,20) + 
+                      scale_fill_continuous(limits = c(0,400),na.value = "white") +
+                      theme_void() +
+                      coord_fixed() +
+                      ggtitle(male_genotypes[i])
+    # plot(p[[i]])
+}
+plot_grid(plotlist = p,ncol = 4)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Session Info
+
+
+```{r}
+sessionInfo()
+```
+
+
+
+
+
